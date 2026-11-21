@@ -250,6 +250,7 @@ type Nfqueue struct {
 	queue        uint16
 	maxQueueLen  []byte // uint32
 	copymode     uint8
+	batchSize    int
 
 	setWriteTimeout func() error
 }
@@ -301,8 +302,11 @@ func Open(config *Config) (*Nfqueue, error) {
 	}
 
 	ncfg := &netlink.Config{NetNS: config.NetNS}
-	if config.PreallocateBuffer {
+	if config.PreallocateBuffer || config.ReceiveBatchSize > 0 {
 		ncfg.MessageBufferSize = messageBufferSize(config)
+	}
+	if config.ReceiveBatchSize > 0 {
+		ncfg.ReceiveBatchSize = config.ReceiveBatchSize
 	}
 	con, err := netlink.Dial(unix.NETLINK_NETFILTER, ncfg)
 	if err != nil {
@@ -329,6 +333,7 @@ func Open(config *Config) (*Nfqueue, error) {
 		nfqueue.logger = config.Logger
 	}
 	nfqueue.copymode = config.Copymode
+	nfqueue.batchSize = max(config.ReceiveBatchSize, 0)
 
 	if config.WriteTimeout > 0 {
 		nfqueue.setWriteTimeout = func() error {
@@ -413,18 +418,20 @@ func (nfqueue *Nfqueue) socketCallback(ctx context.Context, fn HookFunc, errfn E
 			nfqueue.logger.Errorf("Stop receiving nfqueue messages: %v", err)
 			return
 		}
-		replys, err := nfqueue.Con.Receive()
-		if err != nil {
-			if ret := errfn(err); ret != 0 {
-				return
-			}
-			continue
+		var replys []netlink.Message
+		var err error
+		if nfqueue.batchSize > 0 {
+			// A batch can return messages along with the error of another
+			// message in it, so the messages are handled before the error.
+			replys, err = nfqueue.Con.ReceiveBatch()
+		} else {
+			replys, err = nfqueue.Con.Receive()
 		}
 		for _, msg := range replys {
 			if msg.Header.Type == netlink.Done {
-				// this is the last message of a batch
-				// continue to receive messages
-				break
+				// this is the last message of a multi-part response,
+				// a batch can hold more messages after it
+				continue
 			}
 			m, err := parseMsg(nfqueue.logger, msg)
 			if err != nil {
@@ -432,6 +439,11 @@ func (nfqueue *Nfqueue) socketCallback(ctx context.Context, fn HookFunc, errfn E
 				continue
 			}
 			if ret := fn(m); ret != 0 {
+				return
+			}
+		}
+		if err != nil {
+			if ret := errfn(err); ret != 0 {
 				return
 			}
 		}

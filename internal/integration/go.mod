@@ -6,7 +6,7 @@ require (
 	github.com/florianl/go-nfqueue/v2 v2.0.0
 	github.com/google/nftables v0.3.0
 	github.com/jsimonetti/rtnetlink/v2 v2.3.0
-	golang.org/x/net v0.55.0
+	golang.org/x/net v0.61.0
 	golang.org/x/sync v0.25.0
 	golang.org/x/sys v0.50.0
 )
@@ -14,7 +14,9 @@ require (
 require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
-	github.com/mdlayher/socket v0.6.0 // indirect
+	github.com/mdlayher/socket v0.8.0 // indirect
 )
 
 replace github.com/florianl/go-nfqueue/v2 => ../../
+
+replace github.com/mdlayher/netlink => github.com/nickgarlis/netlink v0.0.0-20261121200642-71f655cf4349

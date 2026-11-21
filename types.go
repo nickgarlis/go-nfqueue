@@ -66,6 +66,11 @@ type Config struct {
 	// sizing each one first. This improves performance for small messages.
 	PreallocateBuffer bool
 
+	// ReceiveBatchSize reads up to this many messages with a single system
+	// call and implies PreallocateBuffer. If not set or set to 0, messages
+	// are read one at a time.
+	ReceiveBatchSize int
+
 	// AfFamily for this Nfqueue socket.
 	AfFamily uint8
 

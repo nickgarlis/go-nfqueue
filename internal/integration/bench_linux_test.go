@@ -20,20 +20,23 @@ func BenchmarkThroughput(b *testing.B) {
 		name        string
 		packetSize  int
 		preallocate bool
+		batchSize   int
 	}{
-		{"packet=128/preallocate=false", 128, false},
-		{"packet=128/preallocate=true", 128, true},
-		{"packet=1500/preallocate=false", 1500, false},
-		{"packet=1500/preallocate=true", 1500, true},
+		{"packet=128/preallocate=false/batch=0", 128, false, 0},
+		{"packet=128/preallocate=true/batch=0", 128, true, 0},
+		{"packet=128/preallocate=true/batch=16", 128, true, 16},
+		{"packet=1500/preallocate=false/batch=0", 1500, false, 0},
+		{"packet=1500/preallocate=true/batch=0", 1500, true, 0},
+		{"packet=1500/preallocate=true/batch=16", 1500, true, 16},
 	}
 	for _, tc := range cases {
 		b.Run(tc.name, func(b *testing.B) {
-			runReceiveBench(b, tc.packetSize, tc.preallocate)
+			runReceiveBench(b, tc.packetSize, tc.preallocate, tc.batchSize)
 		})
 	}
 }
 
-func runReceiveBench(b *testing.B, packetSize int, preallocate bool) {
+func runReceiveBench(b *testing.B, packetSize int, preallocate bool, batchSize int) {
 	inNetNS(b, func() (err error) {
 		const port = 9999
 		cfg := nfqueue.Config{
@@ -42,6 +45,7 @@ func runReceiveBench(b *testing.B, packetSize int, preallocate bool) {
 			MaxQueueLen:       4096,
 			MaxPacketLen:      0xFFFF, // copy the whole packet
 			PreallocateBuffer: preallocate,
+			ReceiveBatchSize:  batchSize,
 		}
 
 		_, cleanup, err := setupDummy("dummy0", dummyPrefix)
